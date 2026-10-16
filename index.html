@@ -1,5 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
-<title>REEF Nametag Maker</title>
+<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1"><style>[hidden]{display:none!important}body{margin:0}</style></head><body><title>REEF Nametag Maker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: brand bar on top; live laser preview (left, sticky) beside a stacked control rail (right); single column on phones. */
@@ -84,6 +83,7 @@ input[type=range]{width:100%;accent-color:var(--red)}
 .btn:disabled{opacity:.5;cursor:default}
 .note{font-size:13px;color:var(--muted);margin:0}
 .status{font-size:13px;min-height:1.2em;margin:0}
+#svgCode{font:12px var(--f-mono);width:100%;min-width:0;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:4px;padding:8px;resize:vertical;word-break:break-all}
 .dims{font-family:var(--f-mono);font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:no-preference){.stage svg path{transition:fill .2s}}
 @media (max-width:480px){.fonts{grid-template-columns:repeat(2,minmax(0,1fr))}.tpls{gap:4px}.tpl{padding:4px;text-align:center}.tpl b{font-size:10px}}
@@ -169,8 +169,14 @@ input[type=range]{width:100%;accent-color:var(--red)}
       <div class="dl">
         <button type="button" class="btn pri" id="dlZip" disabled>Download laser files (.zip)</button>
         <button type="button" class="btn sec" id="dlSvg" disabled>SVG only</button>
+        <button type="button" class="btn sec" id="copySvg">Copy SVG</button>
       </div>
       <p class="status" id="status" role="status"></p>
+      <div id="svgBox" class="f" hidden>
+        <label for="svgCode" style="font-size:13px;color:var(--muted)">SVG code: select all and copy, then paste into Illustrator</label>
+        <textarea id="svgCode" readonly rows="5" spellcheck="false"></textarea>
+      </div>
+      <p class="note"><b>Copy SVG</b> puts the tag on your clipboard at actual size. In Illustrator, open a document and choose <b>Edit › Paste</b>.</p>
       <p class="note">The zip holds a <b>.dxf</b> (open in AutoCAD and Save As <b>.dwg</b>), an <b>.svg</b> for Illustrator or CorelDRAW, and a setup sheet. Red = cut, blue = score, black = engrave. DXF text comes in as outlines; fill the ENGRAVE layer before printing.</p>
     </section>
   </div>
@@ -516,19 +522,24 @@ var NT = (function () {
   }
 
   /* ---- SVG for the laser (Epilog colour mapping) ---- */
-  function toSVG(s, g) {
+  // opt.pt = true: points-based version for pasting straight into Illustrator (1 unit = 1 pt, true size)
+  function toSVG(s, g, opt) {
+    var pt = opt && opt.pt, K = 72 / MM_PER_IN;
     var hair = 0.0254; // 0.001 in
-    var W = s.units === "in" ? f(s.w / MM_PER_IN) + "in" : f(s.w) + "mm";
-    var H = s.units === "in" ? f(s.h / MM_PER_IN) + "in" : f(s.h) + "mm";
+    var W = pt ? f(s.w * K) + "pt" : s.units === "in" ? f(s.w / MM_PER_IN) + "in" : f(s.w) + "mm";
+    var H = pt ? f(s.h * K) + "pt" : s.units === "in" ? f(s.h / MM_PER_IN) + "in" : f(s.h) + "mm";
+    var vb = pt ? f(s.w * K) + " " + f(s.h * K) : f(s.w) + " " + f(s.h);
     var cut = g.cut.map(function (p) { return polyD(p, true); }).join("") + g.holes.map(circleD).join("");
     var score = g.score.map(function (o) { return polyD(o.pts, o.closed); }).join("");
     var eng = textD(g) + g.engraveRects.map(function (p) { return polyD(p, true); }).join("");
     return '<?xml version="1.0" encoding="UTF-8"?>\n' +
-      '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + f(s.w) + " " + f(s.h) + '">\n' +
-      "<!-- REEF Makerspace nametag. Units: mm. Red hairline = vector cut, blue hairline = vector score, black fill = raster engrave. -->\n" +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H + '" viewBox="0 0 ' + vb + '">\n' +
+      "<!-- REEF Makerspace nametag. Red hairline = vector cut, blue hairline = vector score, black fill = raster engrave. -->\n" +
+      (pt ? '<g transform="scale(' + K.toFixed(6) + ')">\n' : "") +
       '<g id="ENGRAVE"><path d="' + eng + '" fill="#000000" stroke="none"/></g>\n' +
       (score ? '<g id="SCORE"><path d="' + score + '" fill="none" stroke="#0000FF" stroke-width="' + hair + '"/></g>\n' : "") +
       '<g id="CUT"><path d="' + cut + '" fill="none" stroke="#FF0000" stroke-width="' + hair + '"/></g>\n' +
+      (pt ? "</g>\n" : "") +
       "</svg>\n";
   }
 
@@ -819,6 +830,19 @@ if (typeof module !== "undefined") module.exports = NT;
     ]);
     save(base + ".zip", new Blob([bytes], {type:"application/zip"}));
   });
+  $("copySvg").addEventListener("click", function(){
+    var g = NT.build(S, fontSet()), svg = NT.toSVG(S, g, {pt:true});
+    var box = $("svgBox"), ta = $("svgCode");
+    function manual(){
+      ta.value = svg; box.hidden = false; ta.focus(); ta.select();
+      status("Your device blocked automatic copying. The code is selected below: copy it, then paste into Illustrator.");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(svg).then(function(){
+        box.hidden = true; status("SVG copied. In Illustrator, choose Edit › Paste.");
+      }, manual);
+    } else manual();
+  });
   $("dlSvg").addEventListener("click", function(){
     var g = NT.build(S, fontSet());
     save("reef-nametag-" + slug() + ".svg", NT.toSVG(S, g));
@@ -862,5 +886,4 @@ if (typeof module !== "undefined") module.exports = NT;
   initDownloads();
 })();
 </script>
-
 </body></html>
