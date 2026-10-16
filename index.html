@@ -1,4 +1,5 @@
-<!doctype html><html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>[hidden]{display:none!important}body{margin:0}</style></head><body><title>REEF Nametag Maker</title>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>REEF Nametag Maker</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <style>
 /* Layout: brand bar on top; live laser preview (left, sticky) beside a stacked control rail (right); single column on phones. */
@@ -78,6 +79,8 @@ input[type=range]{width:100%;accent-color:var(--red)}
 .btn{font:inherit;font-weight:700;border-radius:4px;padding:11px 16px;cursor:pointer;border:1px solid transparent}
 .btn.pri{background:var(--yellow);color:#010101}
 .btn.sec{background:transparent;color:var(--fg);border-color:var(--fg)}
+.btn.reset{font-size:13px;padding:7px 12px}
+.btn.reset.arm{background:var(--red);border-color:var(--red);color:#fff}
 .btn:disabled{opacity:.5;cursor:default}
 .note{font-size:13px;color:var(--muted);margin:0}
 .status{font-size:13px;min-height:1.2em;margin:0}
@@ -102,9 +105,9 @@ input[type=range]{width:100%;accent-color:var(--red)}
     <div class="row" style="justify-content:space-between">
       <div class="seg" id="viewSeg" role="group" aria-label="Preview">
         <button type="button" data-v="birch" aria-pressed="true">Birch ply</button>
-        <button type="button" data-v="twotone" aria-pressed="false">Two-tone acrylic</button>
+        <button type="button" data-v="twotone" aria-pressed="false">Acrylic</button>
         <button type="button" data-v="clear" aria-pressed="false">Clear acrylic</button>
-        <button type="button" data-v="laser" aria-pressed="false">Laser colors</button>
+        <button type="button" data-v="laser" aria-pressed="false">Color mapping</button>
       </div>
       <span class="dims" id="dims"></span>
     </div>
@@ -118,6 +121,7 @@ input[type=range]{width:100%;accent-color:var(--red)}
   </div>
 
   <div class="panel">
+    <div class="row" style="justify-content:flex-end"><button type="button" class="btn sec reset" id="resetBtn">Reset to defaults</button></div>
     <section class="grp">
       <h2 class="lbl">Text</h2>
       <label class="f" for="name">Name
@@ -613,7 +617,7 @@ if (typeof module !== "undefined") module.exports = NT;
     {id:"classic", name:"Classic", d:"Scored border, centered name"},
     {id:"hello", name:"Hello", d:"Header, rule, name"},
     {id:"split", name:"Initials", d:"Big initials beside name"},
-    {id:"maker", name:"Maker", d:"Left-aligned, REEF dash row"},
+    {id:"maker", name:"Maker", d:"Left-aligned, dash row"},
     {id:"underline", name:"Underline", d:"Name over a short rule"}
   ];
   var SHAPES = [
@@ -631,6 +635,7 @@ if (typeof module !== "undefined") module.exports = NT;
 
   var S = {name:"Hello World", showHeader:true, line2:"REEF Makerspace", header:"Hello, my name is", template:"classic",
            shape:"rounded", w:76.2, h:50.8, radius:4, hole:"none", textScale:1, tracking:0, units:"in", font:"sans", view:"birch"};
+  var DEFAULTS = JSON.parse(JSON.stringify(S));
   try { var saved = JSON.parse(localStorage.getItem("reef-nametag-v4") || "null"); if (saved) for (var k in saved) if (k in S) S[k] = saved[k]; } catch(e){}
 
   var fonts = null;
@@ -819,6 +824,22 @@ if (typeof module !== "undefined") module.exports = NT;
     save("reef-nametag-" + slug() + ".svg", NT.toSVG(S, g));
   });
 
+  /* ---------- reset (two-step, no browser dialogs) ---------- */
+  var resetTimer = null;
+  $("resetBtn").addEventListener("click", function(){
+    var b = this;
+    if (!b.classList.contains("arm")){
+      b.classList.add("arm"); b.textContent = "Tap again to reset everything";
+      resetTimer = setTimeout(function(){ b.classList.remove("arm"); b.textContent = "Reset to defaults"; }, 4000);
+      return;
+    }
+    clearTimeout(resetTimer); b.classList.remove("arm"); b.textContent = "Reset to defaults";
+    var d = JSON.parse(JSON.stringify(DEFAULTS)); for (var k in d) S[k] = d[k];
+    ["name","line2","header"].forEach(function(k){ $(k).value = S[k]; });
+    try { localStorage.removeItem("reef-nametag-v4"); } catch(e){}
+    sync(); render(); status("Settings reset to defaults.");
+  });
+
   /* ---------- boot ---------- */
   try {
     buildControls(); sync();
@@ -841,4 +862,5 @@ if (typeof module !== "undefined") module.exports = NT;
   initDownloads();
 })();
 </script>
+
 </body></html>
